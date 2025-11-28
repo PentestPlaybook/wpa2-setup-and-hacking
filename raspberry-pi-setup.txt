@@ -32,6 +32,7 @@ PS C:\Users\user> ssh kali@<REDACTED_IP>
 
 ┌──(kali㉿raspberry-pi)-[~]
 └─$ ifconfig
+
 PS C:\Users\user> ssh kali@<REDACTED_IP>
 
 ┌──(kali㉿raspberry-pi)-[~]
