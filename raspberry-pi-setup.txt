@@ -1,0 +1,38 @@
+┌──(kali㉿raspberry-pi)-[~]
+└─$ sudo systemctl enable ssh
+
+┌──(kali㉿raspberry-pi)-[~]
+└─$ sudo systemctl start ssh
+
+┌──(kali㉿raspberry-pi)-[~]
+└─$ ifconfig
+
+PS C:\Users\user> ssh kali@<REDACTED_IP>
+
+┌──(kali㉿raspberry-pi)-[~]
+└─$ sudo sed -i 's/managed=false/managed=true/' /etc/NetworkManager/NetworkManager.conf
+
+┌──(kali㉿raspberry-pi)-[~]
+└─$ sudo systemctl restart NetworkManager
+
+┌──(kali㉿raspberry-pi)-[~]
+└─$ sudo nmcli connection add type ethernet ifname eth0 con-name eth0
+
+┌──(kali㉿raspberry-pi)-[~]
+└─$ sudo nmcli connection modify eth0 ipv4.dns "8.8.8.8 1.1.1.1"
+
+┌──(kali㉿raspberry-pi)-[~]
+└─$ sudo nmcli connection modify eth0 ipv4.ignore-auto-dns yes
+
+┌──(kali㉿raspberry-pi)-[~]
+└─$ sudo nmcli connection modify eth0 ipv4.method auto
+
+┌──(kali㉿raspberry-pi)-[~]
+└─$ sudo reboot
+
+┌──(kali㉿raspberry-pi)-[~]
+└─$ ifconfig
+PS C:\Users\user> ssh kali@<REDACTED_IP>
+
+┌──(kali㉿raspberry-pi)-[~]
+└─$ sudo apt update && sudo apt -y upgrade
