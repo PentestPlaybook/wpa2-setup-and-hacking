@@ -13,10 +13,10 @@ managed=true
 managed=true
 EOF
 
-# 3. Prevent any interface from being unmanaged
+# 3. Configure NetworkManager to NOT manage wlan0 (for AP), but manage everything else
 sudo tee /etc/NetworkManager/conf.d/99-unmanaged-devices.conf >/dev/null <<'EOF'
 [keyfile]
-unmanaged-devices=none
+unmanaged-devices=interface-name:wlan0
 EOF
 
 # 4. Remove/disable any eth0 configuration in /etc/network/interfaces.d/
@@ -38,11 +38,33 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
 
-# 6. Enable the service
+# 6. Create systemd service to configure wlan0 for AP on boot
+sudo tee /etc/systemd/system/wlan0-ap-setup.service >/dev/null <<'EOF'
+[Unit]
+Description=Configure wlan0 for Access Point
+After=network.target
+Before=hostapd.service dnsmasq.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rfkill unblock wifi
+ExecStart=/usr/sbin/ip link set wlan0 down
+ExecStart=/bin/sleep 1
+ExecStart=/usr/sbin/ip link set wlan0 up
+ExecStart=/usr/sbin/ip addr flush dev wlan0
+ExecStart=/usr/sbin/ip addr add 192.168.10.1/24 dev wlan0
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 7. Enable both systemd services
 sudo systemctl daemon-reload
 sudo systemctl enable nm-manage-eth0.service
+sudo systemctl enable wlan0-ap-setup.service
 
-# 7. Create eth0 connection with custom DNS
+# 8. Create eth0 connection with custom DNS
 sudo nmcli connection add type ethernet ifname eth0 con-name eth0
 sudo nmcli connection modify eth0 ipv4.dns "1.1.1.1 8.8.8.8"
 sudo nmcli connection modify eth0 ipv4.ignore-auto-dns yes
@@ -50,19 +72,31 @@ sudo nmcli connection modify eth0 ipv4.method auto
 sudo nmcli connection modify eth0 ipv6.ignore-auto-dns yes
 sudo nmcli connection modify eth0 ipv6.method auto
 
-# 8. Restart NetworkManager
+# 9. Restart NetworkManager
 sudo systemctl restart NetworkManager
 
-# 9. Force eth0 to be managed NOW (before reboot)
+# 10. Force eth0 to be managed NOW (before reboot)
 sudo nmcli device set eth0 managed yes
 
-# 10. Verify everything works
+# 11. Reboot to confirm persistence
+sudo reboot
+
+# 12. Verify everything works
 nmcli device status
 ping -c2 google.com
 cat /etc/resolv.conf
 
-# 11. Update system
+# 13. Update system
 sudo apt update && sudo apt -y upgrade
 
-# 12. Reboot to confirm persistence
+# 14. Configure WPA2 access point
+curl https://raw.githubusercontent.com/PentestPlaybook/wpa2-setup-and-hacking/refs/heads/main/wpa2-setup.sh -o wpa2-setup.sh
+chmod +x wpa2-setup.sh
+sudo ./wpa2-setup.sh
+
+# 15. Reboot and verify everything works
 sudo reboot
+nmcli device status
+ping -c2 google.com
+cat /etc/resolv.conf
+sudo systemctl status hostapd dnsmasq
