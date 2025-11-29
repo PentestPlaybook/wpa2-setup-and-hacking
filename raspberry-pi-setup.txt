@@ -1,39 +1,68 @@
-┌──(kali㉿raspberry-pi)-[~]
-└─$ sudo systemctl enable ssh
+# 1. Enable SSH
+sudo systemctl enable ssh
+sudo systemctl start ssh
 
-┌──(kali㉿raspberry-pi)-[~]
-└─$ sudo systemctl start ssh
+# 2. Configure NetworkManager to manage all interfaces
+sudo tee /etc/NetworkManager/NetworkManager.conf >/dev/null <<'EOF'
+[main]
+plugins=keyfile,ifupdown
+dns=default
+managed=true
 
-┌──(kali㉿raspberry-pi)-[~]
-└─$ ifconfig
+[ifupdown]
+managed=true
+EOF
 
-PS C:\Users\user> ssh kali@<REDACTED_IP>
+# 3. Prevent any interface from being unmanaged
+sudo tee /etc/NetworkManager/conf.d/99-unmanaged-devices.conf >/dev/null <<'EOF'
+[keyfile]
+unmanaged-devices=none
+EOF
 
-┌──(kali㉿raspberry-pi)-[~]
-└─$ sudo sed -i 's/managed=false/managed=true/' /etc/NetworkManager/NetworkManager.conf
+# 4. Remove/disable any eth0 configuration in /etc/network/interfaces.d/
+sudo rm -f /etc/network/interfaces.d/eth0
 
-┌──(kali㉿raspberry-pi)-[~]
-└─$ sudo systemctl restart NetworkManager
+# 5. Create systemd service to force eth0 management on boot
+sudo tee /etc/systemd/system/nm-manage-eth0.service >/dev/null <<'EOF'
+[Unit]
+Description=Force NetworkManager to manage eth0
+After=NetworkManager.service
+Wants=NetworkManager.service
 
-┌──(kali㉿raspberry-pi)-[~]
-└─$ sudo nmcli connection add type ethernet ifname eth0 con-name eth0
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nmcli device set eth0 managed yes
+RemainAfterExit=yes
 
-┌──(kali㉿raspberry-pi)-[~]
-└─$ sudo nmcli connection modify eth0 ipv4.dns "8.8.8.8 1.1.1.1"
+[Install]
+WantedBy=multi-user.target
+EOF
 
-┌──(kali㉿raspberry-pi)-[~]
-└─$ sudo nmcli connection modify eth0 ipv4.ignore-auto-dns yes
+# 6. Enable the service
+sudo systemctl daemon-reload
+sudo systemctl enable nm-manage-eth0.service
 
-┌──(kali㉿raspberry-pi)-[~]
-└─$ sudo nmcli connection modify eth0 ipv4.method auto
+# 7. Create eth0 connection with custom DNS
+sudo nmcli connection add type ethernet ifname eth0 con-name eth0
+sudo nmcli connection modify eth0 ipv4.dns "1.1.1.1 8.8.8.8"
+sudo nmcli connection modify eth0 ipv4.ignore-auto-dns yes
+sudo nmcli connection modify eth0 ipv4.method auto
+sudo nmcli connection modify eth0 ipv6.ignore-auto-dns yes
+sudo nmcli connection modify eth0 ipv6.method auto
 
-┌──(kali㉿raspberry-pi)-[~]
-└─$ sudo reboot
+# 8. Restart NetworkManager
+sudo systemctl restart NetworkManager
 
-┌──(kali㉿raspberry-pi)-[~]
-└─$ ifconfig
+# 9. Force eth0 to be managed NOW (before reboot)
+sudo nmcli device set eth0 managed yes
 
-PS C:\Users\user> ssh kali@<REDACTED_IP>
+# 10. Verify everything works
+nmcli device status
+ping -c2 google.com
+cat /etc/resolv.conf
 
-┌──(kali㉿raspberry-pi)-[~]
-└─$ sudo apt update && sudo apt -y upgrade
+# 11. Update system
+sudo apt update && sudo apt -y upgrade
+
+# 12. Reboot to confirm persistence
+sudo reboot
